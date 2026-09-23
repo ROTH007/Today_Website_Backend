@@ -16,6 +16,7 @@ const provinceCoverageRoutes = require("./src/routes/provinceCoverage");
 const pricingPlansRoutes = require("./src/routes/pricingPlans");
 const servicesContentRoutes = require("./src/routes/servicesContent");
 const trustedClientsRoutes = require("./src/routes/trustedClients");
+const testimonialsRoutes = require("./src/routes/testimonials");
 
 const app = express();
 
@@ -38,6 +39,7 @@ app.use("/province-coverage", provinceCoverageRoutes);
 app.use("/pricing-plans", pricingPlansRoutes);
 app.use("/services-content", servicesContentRoutes);
 app.use("/trusted-clients", trustedClientsRoutes);
+app.use("/testimonials", testimonialsRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Not found" });

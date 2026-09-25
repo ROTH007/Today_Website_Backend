@@ -17,6 +17,7 @@ const pricingPlansRoutes = require("./src/routes/pricingPlans");
 const servicesContentRoutes = require("./src/routes/servicesContent");
 const trustedClientsRoutes = require("./src/routes/trustedClients");
 const testimonialsRoutes = require("./src/routes/testimonials");
+const careerOpeningsRoutes = require("./src/routes/careerOpenings");
 
 const app = express();
 
@@ -40,6 +41,8 @@ app.use("/pricing-plans", pricingPlansRoutes);
 app.use("/services-content", servicesContentRoutes);
 app.use("/trusted-clients", trustedClientsRoutes);
 app.use("/testimonials", testimonialsRoutes);
+app.use("/career-openings", careerOpeningsRoutes);
+
 
 app.use((req, res) => {
   res.status(404).json({ error: "Not found" });

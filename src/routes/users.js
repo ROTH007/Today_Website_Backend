@@ -6,12 +6,34 @@ const { logAction } = require("../db/audit");
 
 const router = express.Router();
 
-const PUBLIC_FIELDS = "id, name, email, role, is_active, created_at, updated_at";
+const PUBLIC_FIELDS = "id, name, email, role, avatar_url, is_active, created_at, updated_at";
 
-// All routes below require login. Only Super Admin and Admin can manage users.
+// All routes below require login.
 router.use(authenticate);
 
-// GET /users - list all admin users
+// PATCH /users/me/avatar - any logged-in user can change their own profile
+// picture (upload the file to /uploads-api first, then send its URL here).
+router.patch("/me/avatar", async (req, res) => {
+  const { avatar_url } = req.body;
+
+  if (!avatar_url) {
+    return res.status(400).json({ error: "avatar_url is required" });
+  }
+
+  try {
+    const result = await db.query(
+      `UPDATE users SET avatar_url = $1, updated_at = now() WHERE id = $2 RETURNING ${PUBLIC_FIELDS}`,
+      [avatar_url, req.user.id],
+    );
+    await logAction(req.user.id, "update_avatar", "user", req.user.id, {});
+    res.json({ user: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not update your profile picture" });
+  }
+});
+
+// GET /users - list all admin users (Super Admin, Admin only)
 router.get("/", requireRole("super_admin", "admin"), async (req, res) => {
   try {
     const result = await db.query(
@@ -86,6 +108,34 @@ router.put("/:id", requireRole("super_admin"), async (req, res) => {
     }
     console.error(err);
     res.status(500).json({ error: "Could not update user" });
+  }
+});
+
+// PATCH /users/:id/password - Super Admin sets a new password for a user
+// (e.g. a password reset request that came in outside the app).
+router.patch("/:id/password", requireRole("super_admin"), async (req, res) => {
+  const { id } = req.params;
+  const { password } = req.body;
+
+  if (!password || password.length < 8) {
+    return res.status(400).json({ error: "Password must be at least 8 characters" });
+  }
+
+  try {
+    const passwordHash = await bcrypt.hash(password, 10);
+    const result = await db.query(
+      `UPDATE users SET password_hash = $1, updated_at = now() WHERE id = $2 RETURNING ${PUBLIC_FIELDS}`,
+      [passwordHash, id],
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    await logAction(req.user.id, "reset_password", "user", id, {});
+    res.json({ user: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not reset password" });
   }
 });
 

@@ -7,8 +7,8 @@ const { logAction } = require("../db/audit");
 const PAGES = [
   { key: "home", label: "Home" },
   { key: "business-solutions", label: "Business Solutions" },
-  { key: "our-solution", label: "Our Solution" },
-  { key: "blog", label: "Blog" },
+  { key: "our-solution", label: "Residential Service" },
+  { key: "blog", label: "News and Events" },
   { key: "career", label: "Career" },
   { key: "about", label: "About Us" },
   { key: "contact", label: "Contact Us" },

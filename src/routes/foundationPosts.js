@@ -8,7 +8,7 @@ const router = express.Router();
 router.get("/public", async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT id, caption_en, caption_km, post_date, images
+      `SELECT id, caption_en, caption_km, post_date, images, link_url
        FROM foundation_posts WHERE is_visible = true ORDER BY display_order ASC`,
     );
     res.json({ posts: result.rows });
@@ -29,7 +29,7 @@ router.get("/", authenticate, async (req, res) => {
 });
 
 router.post("/", authenticate, requireRole("super_admin", "admin", "editor"), async (req, res) => {
-  const { caption_en, caption_km, post_date, images } = req.body;
+  const { caption_en, caption_km, post_date, images, link_url } = req.body;
   const photoList = Array.isArray(images) ? images : [];
 
   if (!caption_en || !caption_km || photoList.length === 0) {
@@ -40,9 +40,17 @@ router.post("/", authenticate, requireRole("super_admin", "admin", "editor"), as
     const countResult = await db.query("SELECT COUNT(*)::int AS count FROM foundation_posts");
 
     const result = await db.query(
-      `INSERT INTO foundation_posts (caption_en, caption_km, post_date, images, display_order, created_by)
-       VALUES ($1, $2, $3, $4::jsonb, $5, $6) RETURNING *`,
-      [caption_en, caption_km, post_date || null, JSON.stringify(photoList), countResult.rows[0].count, req.user.id],
+      `INSERT INTO foundation_posts (caption_en, caption_km, post_date, images, link_url, display_order, created_by)
+       VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7) RETURNING *`,
+      [
+        caption_en,
+        caption_km,
+        post_date || null,
+        JSON.stringify(photoList),
+        link_url || null,
+        countResult.rows[0].count,
+        req.user.id,
+      ],
     );
     await logAction(req.user.id, "create_foundation_post", "foundation_post", result.rows[0].id, {});
     res.status(201).json({ post: result.rows[0] });
@@ -54,7 +62,7 @@ router.post("/", authenticate, requireRole("super_admin", "admin", "editor"), as
 
 router.put("/:id", authenticate, requireRole("super_admin", "admin", "editor"), async (req, res) => {
   const { id } = req.params;
-  const { caption_en, caption_km, post_date, images } = req.body;
+  const { caption_en, caption_km, post_date, images, link_url } = req.body;
   const photoList = Array.isArray(images) ? images : [];
 
   if (!caption_en || !caption_km || photoList.length === 0) {
@@ -64,9 +72,9 @@ router.put("/:id", authenticate, requireRole("super_admin", "admin", "editor"), 
   try {
     const result = await db.query(
       `UPDATE foundation_posts SET caption_en = $1, caption_km = $2, post_date = $3,
-        images = $4::jsonb, updated_by = $5, updated_at = now()
-       WHERE id = $6 RETURNING *`,
-      [caption_en, caption_km, post_date || null, JSON.stringify(photoList), req.user.id, id],
+        images = $4::jsonb, link_url = $5, updated_by = $6, updated_at = now()
+       WHERE id = $7 RETURNING *`,
+      [caption_en, caption_km, post_date || null, JSON.stringify(photoList), link_url || null, req.user.id, id],
     );
     if (result.rows.length === 0) return res.status(404).json({ error: "Post not found" });
     await logAction(req.user.id, "update_foundation_post", "foundation_post", id, {});

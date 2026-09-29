@@ -19,10 +19,28 @@ function slugify(name) {
     .slice(0, 40);
 }
 
+// Detail-page text fields carried on every service row. Optional on
+// write — a service with no detail content yet just has these come back
+// null/[] and the public site falls back to its default layout.
+const DETAIL_FIELDS = [
+  "detail_heading_en", "detail_heading_km",
+  "detail_subtitle_lead_en", "detail_subtitle_lead_km",
+  "detail_subtitle_en", "detail_subtitle_km",
+  "detail_benefits_heading_en", "detail_benefits_heading_km",
+  "detail_logo_url",
+  "detail_packages_heading_en", "detail_packages_heading_km",
+];
+
 router.get("/public", async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT id, name_en, name_km, description_en, description_km, icon, link_url
+      `SELECT id, static_id, name_en, name_km, description_en, description_km, icon, link_url, image_url,
+              detail_heading_en, detail_heading_km,
+              detail_subtitle_lead_en, detail_subtitle_lead_km,
+              detail_subtitle_en, detail_subtitle_km,
+              detail_benefits_heading_en, detail_benefits_heading_km,
+              detail_logo_url, detail_benefits,
+              detail_packages_heading_en, detail_packages_heading_km, detail_packages
        FROM services_content WHERE is_visible = true ORDER BY display_order ASC`,
     );
     res.json({ services: result.rows });
@@ -77,7 +95,7 @@ router.post("/", authenticate, requireRole("super_admin", "admin", "editor"), as
 
 router.put("/:id", authenticate, requireRole("super_admin", "admin", "editor"), async (req, res) => {
   const { id } = req.params;
-  const { name_en, name_km, description_en, description_km, icon, link_url } = req.body;
+  const { name_en, name_km, description_en, description_km, icon, link_url, image_url } = req.body;
 
   if (!name_en || !name_km || !description_en || !description_km) {
     return res.status(400).json({ error: "Name and description are required in both languages" });
@@ -86,12 +104,40 @@ router.put("/:id", authenticate, requireRole("super_admin", "admin", "editor"), 
     return res.status(400).json({ error: "Invalid icon" });
   }
 
+  // Detail-page fields are all optional — default to empty string/array
+  // rather than null so the frontend never has to guard against null.
+  const detail = {};
+  for (const field of DETAIL_FIELDS) {
+    detail[field] = req.body[field] ?? "";
+  }
+  const detailBenefits = Array.isArray(req.body.detail_benefits) ? req.body.detail_benefits : [];
+  const detailPackages = Array.isArray(req.body.detail_packages) ? req.body.detail_packages : [];
+
   try {
     const result = await db.query(
-      `UPDATE services_content SET name_en = $1, name_km = $2, description_en = $3, description_km = $4,
-        icon = $5, link_url = $6, updated_by = $7, updated_at = now()
-       WHERE id = $8 RETURNING *`,
-      [name_en, name_km, description_en, description_km, icon || "wifi", link_url || "/contact", req.user.id, id],
+      `UPDATE services_content SET
+        name_en = $1, name_km = $2, description_en = $3, description_km = $4,
+        icon = $5, link_url = $6, image_url = $7, updated_by = $8, updated_at = now(),
+        detail_heading_en = $9, detail_heading_km = $10,
+        detail_subtitle_lead_en = $11, detail_subtitle_lead_km = $12,
+        detail_subtitle_en = $13, detail_subtitle_km = $14,
+        detail_benefits_heading_en = $15, detail_benefits_heading_km = $16,
+        detail_logo_url = $17, detail_benefits = $18::jsonb,
+        detail_packages_heading_en = $19, detail_packages_heading_km = $20,
+        detail_packages = $21::jsonb
+       WHERE id = $22 RETURNING *`,
+      [
+        name_en, name_km, description_en, description_km,
+        icon || "wifi", link_url || "/contact", image_url || "", req.user.id,
+        detail.detail_heading_en, detail.detail_heading_km,
+        detail.detail_subtitle_lead_en, detail.detail_subtitle_lead_km,
+        detail.detail_subtitle_en, detail.detail_subtitle_km,
+        detail.detail_benefits_heading_en, detail.detail_benefits_heading_km,
+        detail.detail_logo_url, JSON.stringify(detailBenefits),
+        detail.detail_packages_heading_en, detail.detail_packages_heading_km,
+        JSON.stringify(detailPackages),
+        id,
+      ],
     );
     if (result.rows.length === 0) return res.status(404).json({ error: "Service not found" });
     await logAction(req.user.id, "update_service_content", "service", id, { name_en });
